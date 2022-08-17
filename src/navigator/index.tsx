@@ -5,6 +5,7 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack'
 import Main from "containers/Main";
 
 import { setNavigator } from "./navHelper";
+import CaraouselDemo from "containers/CaraouselDemo/CaraouselDemo";
 
 
 
@@ -18,7 +19,8 @@ const Routers = () => {
         >
             <Stack.Navigator screenOptions={{ headerShown: false }}>
 
-                <Stack.Screen name="Main" component={Main} />
+                {/* <Stack.Screen name="Main" component={Main} /> */}
+                <Stack.Screen name="CaraouselDemo" component={CaraouselDemo} />
 
             </Stack.Navigator>
         </NavigationContainer>
