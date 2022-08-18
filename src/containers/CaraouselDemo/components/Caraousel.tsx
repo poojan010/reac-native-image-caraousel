@@ -1,5 +1,6 @@
+import ImageColors from 'react-native-image-colors'
 import React, { useCallback, memo, useRef, useState, FC, useEffect, useMemo } from "react";
-import { FlatList, View, Dimensions, StyleSheet, Image, ImageStyle } from "react-native";
+import { FlatList, View, Dimensions, StyleSheet, Image, ImageStyle, NativeModules } from "react-native";
 
 
 const { width: windowWidth, height: windowHeight } = Dimensions.get("window");
@@ -9,11 +10,54 @@ interface Props {
     data: Array<string>
 }
 
+const colorConfig = {
+    fallback: '#ffffff',
+    cache: true,
+}
 
-const Slide = function Slide({ image, aspectRatio }: any) {
+const defaultBg = "#ffffff"
+
+const ImageSlide = ({ image, aspectRatio }: any) => {
+
+    const imageSource = { uri: image }
+
+    const [isLoading, setIsLoading] = useState(false)
+    const [bgColor, setBgColor] = useState(defaultBg)
+
+    const fetchBgColor = async () => {
+
+        setIsLoading(true)
+
+        const result = await ImageColors.getColors(image, colorConfig)
+
+        if (result.platform === 'ios')
+            setBgColor(result.primary)
+        else if (result.platform === 'android')
+            setBgColor(result.average ? result.average : defaultBg)
+
+        setIsLoading(false)
+
+    }
+
+    useEffect(() => {
+        fetchBgColor()
+    }, [image])
+
+    const imagStyle: ImageStyle = useMemo(() => {
+        return {
+            width: "100%",
+            height: undefined,
+            resizeMode: 'contain',
+            aspectRatio: aspectRatio
+        }
+    }, [aspectRatio])
+
     return (
-        <View style={styles.slide}>
-            <Image source={{ uri: image }} resizeMode="contain" style={{ ...styles.slideImage, width: "100%", height: undefined, aspectRatio: aspectRatio }}></Image>
+        <View style={[styles.slide, { backgroundColor: bgColor }]}>
+            <Image
+                style={imagStyle}
+                source={imageSource}
+            />
         </View>
     );
 };
@@ -40,7 +84,7 @@ const Pagination = ({ index, data }: any) => {
 }
 
 // This variable ensures that Height of the Image do not exceed certain amount
-const maximumMinAspectRatioAllowed = (windowWidth / windowHeight) * 1.6
+const maximumMinAspectRatioAllowed = (windowWidth / windowHeight) * 1.7
 
 const Caraousel: FC<Props> = (props) => {
 
@@ -101,6 +145,7 @@ const Caraousel: FC<Props> = (props) => {
                 if (__DEV__) console.log("Get Image Size Error", err)
             })
             .finally(() => setIsLoading(false))
+
     }, [])
 
 
@@ -122,28 +167,27 @@ const Caraousel: FC<Props> = (props) => {
         keyExtractor: useCallback((s: any) => String(s), []),
     };
 
-    const renderItem = useCallback(function renderItem({ item, index }: any) {
-        return <Slide image={item} aspectRatio={aspectRatios[index]} />;
-    }, [minAspectRatio]);
+    const renderItem = useCallback(({ item, index }: any) => {
+        return <ImageSlide image={item} aspectRatio={aspectRatios[index]} />;
+    }, [minAspectRatio, data]);
 
     return (
         <View style={styles.container}>
             <FlatList
                 data={data}
-                style={caraouselStyle}
-                renderItem={renderItem}
-                pagingEnabled
                 horizontal
-                showsHorizontalScrollIndicator={false}
+                pagingEnabled
                 bounces={false}
                 onScroll={onScroll}
+                style={caraouselStyle}
+                renderItem={renderItem}
+                showsHorizontalScrollIndicator={false}
                 {...flatListOptimizationProps}
             />
             <Pagination
                 data={data}
                 index={index}
             />
-
         </View>
     )
 }
@@ -156,17 +200,12 @@ const styles = StyleSheet.create({
     },
     slide: {
         width: windowWidth - 20,
-        // width: '100%',
-        // flex: 1,
-        borderColor: 'red', borderWidth: 1,
         justifyContent: "center",
         alignItems: "center",
     },
     slideImage: {
-        // width: "100%",
-        // height: windowHeight * 0.3
-    },
 
+    },
     pagination: {
         position: "absolute",
         bottom: 8,
