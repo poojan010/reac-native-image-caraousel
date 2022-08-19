@@ -1,32 +1,29 @@
 import ImageColors from 'react-native-image-colors'
-import React, { useCallback, memo, useRef, useState, FC, useEffect, useMemo } from "react";
-import { FlatList, View, Dimensions, StyleSheet, Image, ImageStyle, NativeModules } from "react-native";
+import React, { useCallback, useRef, useState, FC, useEffect, useMemo } from "react";
+import { FlatList, View, Dimensions, StyleSheet, Image, ImageStyle, ViewStyle } from "react-native";
 
 
 const { width: windowWidth, height: windowHeight } = Dimensions.get("window");
 
 
+const IMAGE_WIDTH = windowWidth - 20
+const defaultBg = "#ffffff"
+const colorConfig = { fallback: '#ffffff', cache: true }
+
+// This variable ensures that Height of the Image do not exceed certain amount
+const maximumMinAspectRatioAllowed = (IMAGE_WIDTH / windowHeight) * 1.75
+
 interface Props {
     data: Array<string>
 }
-
-const colorConfig = {
-    fallback: '#ffffff',
-    cache: true,
-}
-
-const defaultBg = "#ffffff"
 
 const ImageSlide = ({ image, aspectRatio }: any) => {
 
     const imageSource = { uri: image }
 
-    const [isLoading, setIsLoading] = useState(false)
     const [bgColor, setBgColor] = useState(defaultBg)
 
     const fetchBgColor = async () => {
-
-        setIsLoading(true)
 
         const result = await ImageColors.getColors(image, colorConfig)
 
@@ -35,25 +32,28 @@ const ImageSlide = ({ image, aspectRatio }: any) => {
         else if (result.platform === 'android')
             setBgColor(result.average ? result.average : defaultBg)
 
-        setIsLoading(false)
-
     }
-
-    useEffect(() => {
-        fetchBgColor()
-    }, [image])
+    useEffect(() => { fetchBgColor() }, [image])
 
     const imagStyle: ImageStyle = useMemo(() => {
         return {
             width: "100%",
             height: undefined,
             resizeMode: 'contain',
-            aspectRatio: aspectRatio
+            aspectRatio: Math.max(aspectRatio, maximumMinAspectRatioAllowed)
         }
     }, [aspectRatio])
 
+    const slideViewStyle: ViewStyle = useMemo(() => {
+        return {
+            ...styles.slide,
+            backgroundColor: bgColor
+        }
+    }, [bgColor])
+
+
     return (
-        <View style={[styles.slide, { backgroundColor: bgColor }]}>
+        <View style={slideViewStyle}>
             <Image
                 style={imagStyle}
                 source={imageSource}
@@ -83,8 +83,6 @@ const Pagination = ({ index, data }: any) => {
     );
 }
 
-// This variable ensures that Height of the Image do not exceed certain amount
-const maximumMinAspectRatioAllowed = (windowWidth / windowHeight) * 1.7
 
 const Caraousel: FC<Props> = (props) => {
 
@@ -112,39 +110,32 @@ const Caraousel: FC<Props> = (props) => {
     }, []);
 
 
-    const [isLoading, setIsLoading] = useState(false)
     const [minAspectRatio, setMinAspectRatio] = useState<number>(1.5)
     const [aspectRatios, setAscpectRatios] = useState<Array<number>>(Array(data.length).fill(1.5))
 
     useEffect(() => {
-        setIsLoading(true)
         setAscpectRatios(Array(data.length).fill(1.5))
 
-        const imagePromises = data.map((img) => {
+        const imagePromises: Array<Promise<number>> = data.map((img) => {
             return new Promise((resolve, reject) => {
                 // @ts-ignore
                 Image.getSize(img, (width: number, height: number) => {
-                    resolve({
-                        width: width,
-                        height: height,
-                    });
-                }, () => reject({ width: 1, height: 1 }))
+                    resolve(width / height);
+                }, () => reject(1))
             })
         })
 
         Promise
             .all(imagePromises)
             .then(images => {
-                const newAspectRatios = images.map((obj: any) => (obj.width / obj.height))
-                let minimumAspectRatioFromImages = Math.min(...newAspectRatios)
-                setAscpectRatios([...newAspectRatios])
+                let minimumAspectRatioFromImages = Math.min(...images)
+                setAscpectRatios([...images])
                 let newMinRatio = Math.max(minimumAspectRatioFromImages, maximumMinAspectRatioAllowed)
-                if (!isNaN(newMinRatio)) setMinAspectRatio(newMinRatio)
+                setMinAspectRatio(newMinRatio)
             })
             .catch((err) => {
                 if (__DEV__) console.log("Get Image Size Error", err)
             })
-            .finally(() => setIsLoading(false))
 
     }, [])
 
@@ -159,12 +150,20 @@ const Caraousel: FC<Props> = (props) => {
 
 
     const flatListOptimizationProps = {
+        windowSize: 2,
         initialNumToRender: 0,
         maxToRenderPerBatch: 1,
-        removeClippedSubviews: true,
         scrollEventThrottle: 16,
-        windowSize: 2,
+        removeClippedSubviews: true,
         keyExtractor: useCallback((s: any) => String(s), []),
+        getItemLayout: useCallback(
+            (_: any, index: number) => ({
+                index,
+                length: (IMAGE_WIDTH),
+                offset: index * (IMAGE_WIDTH),
+            }),
+            []
+        ),
     };
 
     const renderItem = useCallback(({ item, index }: any) => {
@@ -172,7 +171,7 @@ const Caraousel: FC<Props> = (props) => {
     }, [minAspectRatio, data]);
 
     return (
-        <View style={styles.container}>
+        <View>
             <FlatList
                 data={data}
                 horizontal
@@ -181,8 +180,8 @@ const Caraousel: FC<Props> = (props) => {
                 onScroll={onScroll}
                 style={caraouselStyle}
                 renderItem={renderItem}
-                showsHorizontalScrollIndicator={false}
                 {...flatListOptimizationProps}
+                showsHorizontalScrollIndicator={false}
             />
             <Pagination
                 data={data}
@@ -194,24 +193,19 @@ const Caraousel: FC<Props> = (props) => {
 
 export default Caraousel
 
+
 const styles = StyleSheet.create({
-    container: {
-
-    },
     slide: {
-        width: windowWidth - 20,
-        justifyContent: "center",
         alignItems: "center",
-    },
-    slideImage: {
-
+        width: IMAGE_WIDTH,
+        justifyContent: "center",
     },
     pagination: {
-        position: "absolute",
         bottom: 8,
         width: "100%",
-        justifyContent: "center",
         flexDirection: "row",
+        position: "absolute",
+        justifyContent: "center",
     },
     paginationDot: {
         width: 8,
@@ -220,12 +214,9 @@ const styles = StyleSheet.create({
         marginHorizontal: 2,
     },
     paginationDotActive: {
-        backgroundColor: "green"
+        backgroundColor: "#65a765"
     },
     paginationDotInactive: {
-        backgroundColor: "gray"
-    },
-    carousel: {
-
+        backgroundColor: "#e6ffe6"
     },
 })

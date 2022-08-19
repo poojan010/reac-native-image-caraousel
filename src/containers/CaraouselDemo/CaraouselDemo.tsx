@@ -1,6 +1,7 @@
-import React, { useEffect, useState } from 'react';
-import { Button, SafeAreaView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import React from 'react';
+import { SafeAreaView, StyleSheet, Text } from 'react-native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
+
 import Caraousel from './components/Caraousel';
 
 
